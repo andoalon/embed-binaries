@@ -1,8 +1,6 @@
 cmake_minimum_required(VERSION
-	#3.10.3 # include_guard()
-	#3.12.4 # list(SUBLIST ...)
 	3.17.5 # foreach(loop-var... IN ZIP_LISTS <lists>...)
-) 
+)
 
 include_guard()
 
@@ -135,24 +133,24 @@ function(embed_binaries target_name)
 			message(FATAL_ERROR "embed_binaries: unrecognized argument(s) (see above) for ASSET with args: \"${current_asset_args}\"")
 		endif()
 
-		foreach(option_name IN LISTS asset_options)
-			list(APPEND asset_${option_name}s ${asset_${option_name}}) # Always defined to either true or false
+		foreach(param_name IN LISTS asset_options)
+			list(APPEND asset_${param_name}s ${asset_${param_name}}) # Always defined to either true or false
 		endforeach()
 
-		foreach(arg_name IN LISTS asset_required_args)
-			if (NOT DEFINED asset_${arg_name})
-				message(FATAL_ERROR "ASSET '${arg_name}' missing in ASSET with args: \"${current_asset_args}\"")
+		foreach(param_name IN LISTS asset_required_args)
+			if (NOT DEFINED asset_${param_name})
+				message(FATAL_ERROR "ASSET '${param_name}' missing in ASSET with args: \"${current_asset_args}\"")
 			endif()
 
-			list(APPEND asset_${arg_name}s ${asset_${arg_name}})
+			list(APPEND asset_${param_name}s ${asset_${param_name}})
 		endforeach()
 
-		foreach(arg_name default_value IN ZIP_LISTS asset_optional_args asset_optional_args_defaults)
-			if (NOT DEFINED asset_${arg_name})
-				set(asset_${arg_name} ${default_value})
+		foreach(param_name default_value IN ZIP_LISTS asset_optional_args asset_optional_args_defaults)
+			if (NOT DEFINED asset_${param_name})
+				set(asset_${param_name} ${default_value})
 			endif()
 
-			list(APPEND asset_${arg_name}s ${asset_${arg_name}})
+			list(APPEND asset_${param_name}s ${asset_${param_name}})
 		endforeach()
 	endwhile()
 

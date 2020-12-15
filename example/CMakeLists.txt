@@ -18,8 +18,10 @@ embed_binaries(my-embedded-binaries
         # generated, which MUST be in the header so that we can use the
         # embedded data in a constexpr context (C++).
         CONSTEXPR
-        BYTE_TYPE "char" # Useful when embedding ascii string data. Defaults to "unsigned char"
-        NULL_TERMINATE # Useful when embedding string data that will be used with APIs expecting it
+        BYTE_TYPE "char" # Useful when embedding ascii string data (defaults to "unsigned char")
+        # Useful when embedding string data that will be used with APIs expecting
+        # null-terminated strings (although OpenGL does not require it for shaders, this is not a good example)
+        NULL_TERMINATE
     ASSET
         NAME "fragment_shader"
         PATH "shaders/dummy_shader.frag"
@@ -33,9 +35,7 @@ embed_binaries(my-embedded-binaries
         # BYTE_TYPE "unsigned char"
 )
 
-add_executable(example
-    src/main.cc
-)
+add_executable(example src/main.cc)
 target_link_libraries(example PRIVATE my-embedded-binaries)
 set_target_properties(example PROPERTIES
     # So that the program finds the original assets (see main.cc)

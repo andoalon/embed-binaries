@@ -7,7 +7,7 @@ Useful when you want to avoid shipping extra files, but you want to still have t
 
 * Generates arrays containing binary data as C/C++ source files
 * Single CMake file with no dependencies except CMake >=3.17.5. Copy the file to your project and start using it!
-* Generated source files are updated at compile-time whenever the original asset gets modified (CMake's `add_custom_command` is used)
+* Generated source files are updated at build-time whenever the original asset gets modified (CMake's `add_custom_command` is used)
 * Platform-independent, as all of the implementation is written in CMake
 * Can optionally generate a `constexpr` array for compile-time manipulation in C++
 
