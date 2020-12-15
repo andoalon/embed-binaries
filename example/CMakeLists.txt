@@ -31,8 +31,6 @@ embed_binaries(my-embedded-binaries
     ASSET
         NAME "application_logo"
         PATH "assets/application_logo.png"
-        # We don't specify 'BYTE_TYPE'. Equivalent to:
-        # BYTE_TYPE "unsigned char"
 )
 
 add_executable(example src/main.cc)

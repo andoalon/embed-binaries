@@ -12,11 +12,11 @@ constexpr bool shaders_ok(
     const char* fragment_shader_source, std::size_t fragment_shader_source_size)
 {
     return
-        // Check that they are NULL-terminated
-        vertex_shader_source_size > 0  &&
-        vertex_shader_source[vertex_shader_source_size - 1] == '\0' &&
+        // Dummy check
+        vertex_shader_source_size > 0 &&
+        vertex_shader_source[0] != '\0' &&
         fragment_shader_source_size > 0 &&
-        fragment_shader_source[fragment_shader_source_size - 1] == '\0';
+        fragment_shader_source[0] != '\0';
 }
 
 // Use std::size if you have C++17,
@@ -64,12 +64,12 @@ int main()
 
     const bool vertex_shader_success = check_original_asset_is_same_as_embedded(
         std::begin(embedded_vertex_shader),
-        std::end(embedded_vertex_shader) - 1 /* exclude NULL-terminator */,
+        std::end(embedded_vertex_shader) - 1 /* exclude null-terminator */,
         "./shaders/dummy_shader.vert");
 
     const bool fragment_shader_success = check_original_asset_is_same_as_embedded(
         std::begin(embedded_fragment_shader),
-        std::end(embedded_fragment_shader) - 1 /* exclude NULL-terminator */,
+        std::end(embedded_fragment_shader) - 1 /* exclude null-terminator */,
         "./shaders/dummy_shader.frag");
 
     if (logo_success && vertex_shader_success && fragment_shader_success)

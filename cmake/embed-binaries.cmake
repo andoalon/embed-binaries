@@ -57,7 +57,7 @@ function(generate_code_to_embed_binary asset_name asset_path byte_type constexpr
 		string(APPEND header "#ifndef __cplusplus\n#error \"'constexpr' is a C++ feature\"\n#endif\n\nconstexpr ${code}")
 	else()
 		string(APPEND header "#ifdef __cplusplus\nextern \"C\" {\n#endif\n\nextern const ${partial_declaration};\n\n#ifdef __cplusplus\n}\n#endif\n")
-		string(APPEND implementation "#include \"${asset_name_identifier}.h\"\n\nconst ${code}")
+		string(APPEND implementation "#include \"${asset_name_identifier}.h\"\n\n#ifdef __cplusplus\nextern \"C\" {\n#endif\n\nconst ${code}\n#ifdef __cplusplus\n}\n#endif\n")
 	endif()
 
 	set(${out_generated_header} "${header}" PARENT_SCOPE)
@@ -210,7 +210,7 @@ function(embed_binaries target_name)
 					"-Dgenerated_implementation_path=${generated_implementation_path}"
 					-P "${_path_to_embed_binary_myself}"
 			DEPENDS "${asset_PATH}"
-			COMMENT "Embedding binary asset '${asset_NAME}' (\"${asset_PATH}\")..."
+			COMMENT "Embedding binary asset '${asset_NAME}' from \"${asset_PATH}\"..."
 			VERBATIM
 		)
 	endforeach()
