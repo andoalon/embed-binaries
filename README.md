@@ -5,30 +5,38 @@ Useful when you want to avoid shipping extra files, but you want to still have t
 
 ## Features
 
-* Generates arrays containing binary data as C/C++ source files
+* Generates C/C++ source files with arrays containing binary data
 * Single CMake file with no dependencies except CMake >=3.17.5. Copy the file to your project and start using it!
-* Generated source files are updated at build-time whenever the original asset gets modified (CMake's `add_custom_command` is used)
-* Platform-independent, as all of the implementation is written in CMake
+* Generated source files are updated at build-time whenever the original assets get modified (CMake's `add_custom_command` is used)
+* Platform-independent, since all of the implementation is written in CMake
 * Can optionally generate a `constexpr` array for compile-time manipulation in C++
 
 ## Reference
 
 ```cmake
-embed_binaries(<generated_target_name>
+embed_binaries(<generated-target-name>
   [ASSET
-    NAME <name> PATH <path> [BYTE_TYPE <c-cpp-type>] [CONSTEXPR] [NULL_TERMINATE]
+    NAME <name>
+    PATH <path>
+    [BYTE_TYPE <c-cpp-type>]
+    [CONSTEXPR]
+    [NULL_TERMINATE]
   ]...)
 ```
 
 * `NAME`: name of the asset (the name of the generated file and variable)
 * `PATH`: path to the asset file (absolute of relative to `CMAKE_CURRENT_SOURCE_DIR`)
 * `BYTE_TYPE`: type of the elements of the generated array. Defaults to: `"unsigned char"`. Useful when embedding ascii string data (use `BYTE_TYPE "char"`)
-* `CONSTEXPR`: by default, an extern const array will be declared in the header, with the contents in a corresponding .c file, which makes the header as short as possible, which improves compile time, especially when embedding larger assets
+* `CONSTEXPR`: by default, an `extern const` array will be declared in the header, with the contents in a corresponding .c file, which makes the header as short as possible, improving compile time, especially when embedding larger assets. If you specify this option, a `constexpr` array will be generated instead (which _must_ go in the header)
 * `NULL_TERMINATE`: append a null-terminator (`0` byte) at the end of the embedded data. Useful when embedding string data that will be used with APIs expecting null-terminated strings
+
+## Disclaimer
+
+Having the implementation written in CMake makes this utility easy-to-use and portable, but that also makes it rather slow. This is not really noticeable for small assets (<1MB), but you will notice it as you have more and more data. During my tests, generating the code for an ~8MB big file took ~17 seconds in my machine (and generated a ~40MB big .c file!). Therefore, this utility is intended for projects where ease of use is important (e.g. personal projects) or for projects that will only have a few assets to embed. If you have different plans, I would suggest investing some time on a different solution
 
 ## Example
 
-See the `example/` directory for a full example project
+NOTE: see the `example/` directory for a full example project
 
 ```cmake
 include("path/to/embed-binaries.cmake")
@@ -42,9 +50,9 @@ embed_binaries(my-embedded-binaries
         PATH "shaders/dummy_shader.vert"
         BYTE_TYPE "char"
     
-        CONSTEXPR
+        CONSTEXPR # The data will be placed in the header
         
-        # OpenGL does not require null-terminated string for shaders, this is not a good example
+        # OpenGL does not require null-terminated strings for shaders, this is not a good example
         NULL_TERMINATE
     # ASSET ...
 )
@@ -94,7 +102,7 @@ extern const unsigned char embedded_application_logo[212253];
 #endif
 ```
 
-_fragment_shader.c_
+_application_logo.c_
 ```c
 #include "application_logo.h"
 
@@ -108,6 +116,6 @@ const unsigned char embedded_application_logo[212253] = {
 };
 
 #ifdef __cplusplus
-extern "C" {
+}
 #endif
 ```
