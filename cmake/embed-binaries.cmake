@@ -6,7 +6,7 @@ cmake_minimum_required(VERSION
 
 include_guard()
 
-function(generate_code_to_embed_binary asset_name asset_path mode out_generated_header out_generated_implementation)
+function(generate_code_to_embed_binary asset_name asset_path byte_type constexpr null_terminate out_generated_header out_generated_implementation)
 	if (NOT EXISTS "${asset_path}")	
 		message(FATAL_ERROR "The asset '${asset_name}' does not exist in \"${asset_path}\"")
 	endif()
@@ -23,25 +23,39 @@ function(generate_code_to_embed_binary asset_name asset_path mode out_generated_
 		message(FATAL_ERROR "File length in hexadecimal must be a multiple of 2")
 	endif()
 
-	set(valid_modes "constexpr" "extern")
+	if (NOT DEFINED null_terminate)
+		message(FATAL_ERROR "'null_terminate' must be provided")
+	endif()
 
-	if (NOT "${mode}" IN_LIST valid_modes)
-		message(FATAL_ERROR "mode '${mode}' is not one of the valid modes: ${valid_modes}")
+	if (null_terminate)
+		math(EXPR file_bytes "${file_bytes} + 1")
+	endif()
+
+	if (NOT DEFINED constexpr)
+		message(FATAL_ERROR "'constexpr' must be provided")
 	endif()
 	
+	if (NOT byte_type)
+		message(FATAL_ERROR "'byte_type' must be provided and must not be empty: \"${byte_type}\"")
+	endif()
+
 	set(bytes_per_line 64)
     string(REPEAT "[0-9a-f]" ${bytes_per_line} column_pattern)
     string(REGEX REPLACE "(${column_pattern})" "\\1\n" code "${file_contents}")
 
     string(REGEX REPLACE "([0-9a-f][0-9a-f])" "0x\\1," code "${code}")
 
-	set(partial_declaration "unsigned char embedded_${asset_name_identifier}[${file_bytes}]")
+	if (null_terminate)
+		string(APPEND code "0x0") # NULL-terminator
+	endif()
+
+	set(partial_declaration "${byte_type} embedded_${asset_name_identifier}[${file_bytes}]")
 	set(code "${partial_declaration} = {\n${code}\n};\n")
 
 	set(header "#pragma once\n\n")
 	set(implementation "")
 
-	if (mode STREQUAL "constexpr")
+	if (constexpr)
 		string(APPEND header "#ifndef __cplusplus\n#error \"'constexpr' is a C++ feature\"\n#endif\n\nconstexpr ${code}")
 	else()
 		string(APPEND header "#ifdef __cplusplus\nextern \"C\" {\n#endif\n\nextern const ${partial_declaration};\n\n#ifdef __cplusplus\n}\n#endif\n")
@@ -56,7 +70,7 @@ endfunction()
 set(_path_to_embed_binary_myself ${CMAKE_CURRENT_LIST_FILE})
 
 # embed_binaries(<generated_target_name>
-#	[ASSET NAME <name> PATH <path> [MODE constexpr|extern]]...)
+#	[ASSET NAME <name> PATH <path> [BYTE_TYPE <c-cpp-type>] [CONSTEXPR] [NULL_TERMINATE]]...)
 function(embed_binaries target_name)
 	if (NOT DEFINED target_name)	
 		message(FATAL_ERROR "Missing required argument 'TARGET'")
@@ -66,7 +80,9 @@ function(embed_binaries target_name)
 	# so that we can loop while zipping over them
 	set(asset_NAMEs)
 	set(asset_PATHs)
-	set(asset_MODEs)
+	set(asset_CONSTEXPRs)
+	set(asset_BYTE_TYPEs)
+	set(asset_NULL_TERMINATEs)
 
 	set(asset_args_to_parse "${ARGN}")
 	list(FIND asset_args_to_parse ASSET first_asset_index)
@@ -100,10 +116,10 @@ function(embed_binaries target_name)
 			list(SUBLIST asset_args_to_parse ${asset_arg_count} -1 asset_args_to_parse)
 		endif()
 
-		set(asset_options)
+		set(asset_options CONSTEXPR NULL_TERMINATE)
 		set(asset_required_args NAME PATH)
-		set(asset_optional_args MODE)
-		set(asset_optional_args_defaults "extern")
+		set(asset_optional_args MODE BYTE_TYPE)
+		set(asset_optional_args_defaults "extern" "unsigned char")
 		set(asset_args ${asset_required_args} ${asset_optional_args})
 		set(asset_list_args)
 
@@ -118,6 +134,10 @@ function(embed_binaries target_name)
 			endforeach()
 			message(FATAL_ERROR "embed_binaries: unrecognized argument(s) (see above) for ASSET with args: \"${current_asset_args}\"")
 		endif()
+
+		foreach(option_name IN LISTS asset_options)
+			list(APPEND asset_${option_name}s ${asset_${option_name}}) # Always defined to either true or false
+		endforeach()
 
 		foreach(arg_name IN LISTS asset_required_args)
 			if (NOT DEFINED asset_${arg_name})
@@ -139,9 +159,8 @@ function(embed_binaries target_name)
 	set(library_type OBJECT)
 	set(header_visibility PRIVATE)
 
-	set(asset_non_constexpr_modes "${asset_MODEs}")
-	list(FILTER asset_non_constexpr_modes EXCLUDE REGEX "^constexpr$")
-	if (NOT asset_non_constexpr_modes)
+	list(FIND asset_CONSTEXPRs FALSE non_constexpr_index)
+	if (non_constexpr_index EQUAL -1)
 		set(library_type INTERFACE)
 		set(header_visibility INTERFACE)
 	else()
@@ -152,19 +171,14 @@ function(embed_binaries target_name)
 	#set_target_properties("${target_name}" PROPERTIES LINKER_LANGUAGE C) # CMake seemed to not be able to detect it (?)
 	target_include_directories("${target_name}" INTERFACE "${CMAKE_CURRENT_BINARY_DIR}")
 
-	if (NOT asset_non_constexpr_modes)
+	if (non_constexpr_index EQUAL -1)
 		target_compile_features("${target_name}" INTERFACE cxx_constexpr)
 	endif()
 
-	list(LENGTH asset_NAMEs asset_NAMEs_length)
-	list(LENGTH asset_PATHs asset_PATHs_length)
-	list(LENGTH asset_MODEs asset_MODEs_length)
-
-	if (NOT ((asset_NAMEs_length EQUAL asset_PATHs_length) AND (asset_NAMEs_length EQUAL asset_MODEs_length)))
-		message(FATAL_ERROR "Bug detected: length mismatch\nasset_NAMEs (${asset_NAMEs_length}) = ${asset_NAMEs}\nasset_PATHs (${asset_PATHs_length}) = ${asset_PATHs}\nasset_MODEs (${asset_MODEs_length}) = ${asset_MODEs}")
-	endif()
-
-	foreach(asset_NAME asset_PATH asset_MODE IN ZIP_LISTS asset_NAMEs asset_PATHs asset_MODEs)
+	foreach(
+		asset_NAME asset_PATH asset_CONSTEXPR asset_BYTE_TYPE asset_NULL_TERMINATE
+		IN ZIP_LISTS
+		asset_NAMEs asset_PATHs asset_CONSTEXPRs asset_BYTE_TYPEs asset_NULL_TERMINATEs)
 		string(MAKE_C_IDENTIFIER "${asset_NAME}" asset_name_identifier)
 
 		get_filename_component(asset_PATH ${asset_PATH} ABSOLUTE)
@@ -173,18 +187,12 @@ function(embed_binaries target_name)
 			message(FATAL_ERROR "The asset '${asset_NAME}' does not exist in \"${asset_PATH}\"")
 		endif()
 
-		set(valid_modes "constexpr" "extern")
-
-		if (NOT "${asset_MODE}" IN_LIST valid_modes)
-			message(FATAL_ERROR "embed_binaries: MODE '${asset_MODE}' is not one of the valid modes: ${valid_modes}")
-		endif()
-
 		set(generated_code_directory "${CMAKE_CURRENT_BINARY_DIR}/embedded")
 		set(generated_header_path "${generated_code_directory}/${asset_name_identifier}.h")
 		set(generated_implementation_path "${generated_code_directory}/${asset_name_identifier}.c")
 
 		target_sources("${target_name}" "${header_visibility}" "${generated_header_path}")
-		if (asset_MODE STREQUAL "constexpr")
+		if (asset_CONSTEXPR)
 			set(generated_asset_files "${generated_header_path}")
 		else()
 			set(generated_asset_files "${generated_header_path}" "${generated_implementation_path}")
@@ -197,7 +205,9 @@ function(embed_binaries target_name)
 				ARGS
 					"-Dasset_name=${asset_NAME}"
 					"-Dasset_path=${asset_PATH}"
-					"-Dmode=${asset_MODE}"
+					"-Dconstexpr=${asset_CONSTEXPR}"
+					"-Dbyte_type=${asset_BYTE_TYPE}"
+					"-Dnull_terminate=${asset_NULL_TERMINATE}"
 					"-Dgenerated_header_path=${generated_header_path}"
 					"-Dgenerated_implementation_path=${generated_implementation_path}"
 					-P "${_path_to_embed_binary_myself}"
@@ -208,8 +218,8 @@ function(embed_binaries target_name)
 	endforeach()
 endfunction()
 
-function(write_embedded_binary_code asset_name asset_path mode generated_header_path generated_implementation_path)
-	generate_code_to_embed_binary("${asset_name}" "${asset_path}" "${mode}" generated_header generated_implementation)
+function(write_embedded_binary_code asset_name asset_path byte_type constexpr null_terminate generated_header_path generated_implementation_path)
+	generate_code_to_embed_binary("${asset_name}" "${asset_path}" "${byte_type}" "${constexpr}" "${null_terminate}" generated_header generated_implementation)
 
 	file(WRITE "${generated_header_path}" "${generated_header}")
 
@@ -225,11 +235,11 @@ endfunction()
 # Running in script mode
 # https://stackoverflow.com/questions/51427538/cmake-test-if-i-am-in-scripting-mode
 if(CMAKE_SCRIPT_MODE_FILE AND NOT CMAKE_PARENT_LIST_FILE)
-    foreach(variable "asset_name" "asset_path" "mode" "generated_header_path" "generated_implementation_path")
+    foreach(variable "asset_name" "asset_path" "byte_type" "constexpr" "null_terminate" "generated_header_path" "generated_implementation_path")
         if (NOT DEFINED ${variable})
             message(FATAL_ERROR "'${variable}' is not defined")
         endif()
     endforeach()
 
-    write_embedded_binary_code("${asset_name}" "${asset_path}" "${mode}" "${generated_header_path}" "${generated_implementation_path}")
+    write_embedded_binary_code("${asset_name}" "${asset_path}" "${byte_type}" "${constexpr}" "${null_terminate}" "${generated_header_path}" "${generated_implementation_path}")
 endif()
